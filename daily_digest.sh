@@ -29,7 +29,7 @@ fi
 KNOWN="$(sed -n 's/^- \([^|]*\) | \(.*\)$/\1|\2/p' "$PROGRESS_FILE")"
 
 # Step 3 - scan the repo for the TODO comments that exist right now.
-SCAN="$(grep -rnI "TODO" "${SCAN_EXCLUDES[@]}" . || true)"
+SCAN="$(grep -rna "TODO" "${SCAN_EXCLUDES[@]}" . || true)"
 
 # Normalize grep output ("./path:line:content") into the same signature format.
 CURRENT="$(printf '%s\n' "$SCAN" \

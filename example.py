@@ -1,4 +1,4 @@
-def add(a, b):
+﻿def add(a, b):
     return a + b
 
 
@@ -12,4 +12,7 @@ def greet(name):
 # TODO: handle empty name in greet()
 
 
-# TODO: fake task added for memory verification
+# TODO: new task for memory test
+
+
+# TODO: another fake task
