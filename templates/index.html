@@ -3,19 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Scheduled Memory Loop — Daily Digest Dashboard</title>
+  <title>Agent Memory Spine &bull; Autonomous Loop</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
       theme: {
         extend: {
+          fontFamily: {
+            mono: ['JetBrains Mono', 'Menlo', 'monospace'],
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
           colors: {
-            brand: {
-              50: '#eef2ff',
-              500: '#6366f1',
-              600: '#4f46e5',
-              700: '#4338ca',
+            agent: {
+              bg: '#0a0b0e',
+              panel: '#101218',
+              border: '#1f2430',
+              accent: '#06b6d4',
+              emerald: '#10b981',
+              amber: '#f59e0b',
             }
           }
         }
@@ -24,418 +30,353 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    body { font-family: 'Inter', sans-serif; }
-    code, pre, .font-mono { font-family: 'JetBrains Mono', monospace; }
-    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
+    body { font-family: 'Inter', sans-serif; background-color: #0a0b0e; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+    .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+    .custom-scroll::-webkit-scrollbar-track { background: #0a0b0e; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #1f2430; border-radius: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb:hover { background: #334155; }
+    .scan-line {
+      background: linear-gradient(to bottom, transparent 50%, rgba(6, 182, 212, 0.03) 51%);
+      background-size: 100% 4px;
+    }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
+<body class="text-zinc-200 min-h-screen flex flex-col antialiased selection:bg-cyan-500/30 selection:text-cyan-200 scan-line">
 
-  <!-- Toast Notification Container -->
-  <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-md w-full pointer-events-none"></div>
+  <!-- Toast Notification Bar -->
+  <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
 
-  <!-- Top Navigation Header -->
-  <header class="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md sticky top-0 z-40">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+  <!-- Agent Navigation Header -->
+  <header class="border-b border-[#1f2430] bg-[#0c0e14]/90 backdrop-blur-md sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+      
+      <!-- Left: Identity & Status -->
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 text-white font-bold text-xl">
-          🧠
+        <div class="flex items-center gap-2 px-2 py-1 rounded bg-cyan-950/40 border border-cyan-800/40">
+          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+          <span class="font-mono text-xs font-semibold text-cyan-300 tracking-wider">LOOP_AGENT.ai</span>
         </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <h1 class="font-bold text-lg text-white tracking-tight">Scheduled Memory Loop</h1>
-            <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Daily Digest</span>
-          </div>
-          <p class="text-xs text-slate-400">A scheduled scan loop with persistent state spine (<span class="font-mono text-slate-300">progress.md</span>)</p>
+        <div class="hidden sm:flex items-center gap-2 text-xs font-mono text-zinc-400">
+          <span class="text-zinc-600">/</span>
+          <span>SPINE_STATE:</span>
+          <span id="agent-state-pill" class="text-emerald-400 font-medium">IN_SYNC</span>
         </div>
       </div>
 
+      <!-- Right: Live Node Telemetry & GitHub -->
       <div class="flex items-center gap-3">
-        <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700/50 text-xs text-slate-300">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span>Spine Active</span>
+        <div class="hidden md:flex items-center gap-4 text-[11px] font-mono text-zinc-400 px-3 py-1 bg-[#101218] border border-[#1f2430] rounded-md">
+          <div>STORAGE: <span id="storage-pill" class="text-zinc-200">local</span></div>
+          <span class="text-zinc-700">|</span>
+          <div>PULSE: <span class="text-emerald-400">09:00 UTC</span></div>
         </div>
-        <a href="https://github.com/SainBux-HadiSeelro/Scheduled-memory-loop" target="_blank" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium transition-colors">
-          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
-            <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
-          </svg>
-          <span>GitHub</span>
+        <a href="https://github.com/SainBux-HadiSeelro/Scheduled-memory-loop" target="_blank" class="px-2.5 py-1 text-xs font-mono text-zinc-300 hover:text-white bg-[#101218] hover:bg-[#161922] border border-[#1f2430] rounded transition flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          <span>repo</span>
         </a>
       </div>
     </div>
   </header>
 
-  <!-- Main Content Container -->
-  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+  <!-- Agent Workspace Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-5">
 
-    <!-- KPI Metric Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <!-- Total Repo TODOs -->
-      <div class="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 shadow-sm hover:border-slate-700 transition">
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Active Repo TODOs</span>
-          <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
-          </div>
-        </div>
-        <div class="mt-3 flex items-baseline gap-2">
-          <span id="stat-total-todos" class="text-3xl font-extrabold text-white">--</span>
-          <span class="text-xs text-slate-400">comments found</span>
+    <!-- Telemetry Status Bar (Agentic Minimalist Metrics) -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div class="p-3.5 rounded-lg bg-[#101218] border border-[#1f2430]">
+        <div class="text-[11px] font-mono text-zinc-400">ACTIVE_OBSERVATIONS</div>
+        <div class="mt-1 flex items-baseline gap-2">
+          <span id="metric-active" class="text-2xl font-bold font-mono text-white">--</span>
+          <span class="text-[10px] font-mono text-zinc-500">TODOs</span>
         </div>
       </div>
 
-      <!-- Known in Spine -->
-      <div class="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 shadow-sm hover:border-slate-700 transition">
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Memory Spine</span>
-          <div class="w-8 h-8 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-          </div>
-        </div>
-        <div class="mt-3 flex items-baseline gap-2">
-          <span id="stat-known-todos" class="text-3xl font-extrabold text-white">--</span>
-          <span class="text-xs text-slate-400">known signatures</span>
+      <div class="p-3.5 rounded-lg bg-[#101218] border border-[#1f2430]">
+        <div class="text-[11px] font-mono text-zinc-400">PERSISTED_MEMORY</div>
+        <div class="mt-1 flex items-baseline gap-2">
+          <span id="metric-known" class="text-2xl font-bold font-mono text-cyan-400">--</span>
+          <span class="text-[10px] font-mono text-zinc-500">signatures</span>
         </div>
       </div>
 
-      <!-- New Unreported TODOs -->
-      <div class="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 shadow-sm hover:border-slate-700 transition" id="card-new-todos">
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">New (Unrecorded)</span>
-          <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-          </div>
-        </div>
-        <div class="mt-3 flex items-baseline gap-2">
-          <span id="stat-new-todos" class="text-3xl font-extrabold text-amber-400">--</span>
-          <span id="stat-new-label" class="text-xs text-slate-400">awaiting digest</span>
+      <div class="p-3.5 rounded-lg bg-[#101218] border border-[#1f2430]" id="card-new-kpi">
+        <div class="text-[11px] font-mono text-zinc-400">NEW_DELTA_UNSAVED</div>
+        <div class="mt-1 flex items-baseline gap-2">
+          <span id="metric-new" class="text-2xl font-bold font-mono text-amber-400">--</span>
+          <span id="metric-new-tag" class="text-[10px] font-mono text-zinc-500">ready to commit</span>
         </div>
       </div>
 
-      <!-- Recorded Runs -->
-      <div class="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 shadow-sm hover:border-slate-700 transition">
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Digest Runs</span>
-          <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          </div>
-        </div>
-        <div class="mt-3 flex items-baseline gap-2">
-          <span id="stat-history-count" class="text-3xl font-extrabold text-white">--</span>
-          <span class="text-xs text-slate-400">beats recorded</span>
+      <div class="p-3.5 rounded-lg bg-[#101218] border border-[#1f2430]">
+        <div class="text-[11px] font-mono text-zinc-400">EPISODIC_RUNS</div>
+        <div class="mt-1 flex items-baseline gap-2">
+          <span id="metric-episodes" class="text-2xl font-bold font-mono text-emerald-400">--</span>
+          <span class="text-[10px] font-mono text-zinc-500">beats</span>
         </div>
       </div>
     </div>
 
-    <!-- Action Control Center Bar -->
-    <div class="p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900/95 to-slate-900 border border-slate-800 shadow-xl space-y-4">
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 class="text-base font-semibold text-white">Loop Control Center</h2>
-          <p class="text-xs text-slate-400">Trigger manual scan beats or simulate new TODO comments to test the memory loop.</p>
-        </div>
+    <!-- Agent Command Strip -->
+    <div class="p-3.5 rounded-lg bg-[#101218] border border-[#1f2430] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+      
+      <!-- Primary Agent Actions -->
+      <div class="flex items-center gap-2">
+        <button id="btn-trigger" onclick="runAgentBeat()" class="px-4 py-2 rounded-md bg-cyan-500 hover:bg-cyan-400 text-zinc-950 font-mono text-xs font-bold transition flex items-center gap-2 shadow-sm shadow-cyan-500/20 active:scale-95">
+          <span>⚡ TRIGGER_LOOP_BEAT</span>
+        </button>
 
-        <div class="flex flex-wrap items-center gap-3">
-          <!-- Run Digest Beat -->
-          <button id="btn-run-digest" onclick="triggerRunDigest()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-medium text-sm shadow-lg shadow-emerald-500/20 active:scale-95 transition-all flex items-center gap-2">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <span>Run Digest Beat Now</span>
-          </button>
+        <button onclick="fetchStatus(true)" class="px-3 py-2 rounded-md bg-[#161922] hover:bg-[#1f2430] text-zinc-300 font-mono text-xs border border-[#1f2430] transition flex items-center gap-1.5" title="Rescan Workspace">
+          <span>↻ RE_PERCEIVE</span>
+        </button>
 
-          <!-- Refresh Status -->
-          <button onclick="fetchStatus(true)" class="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition" title="Refresh Live State">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-          </button>
-
-          <!-- Reset Memory -->
-          <button onclick="confirmResetMemory()" class="px-3.5 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 font-medium text-xs transition" title="Reset progress.md spine">
-            Reset Memory
-          </button>
-        </div>
-      </div>
-
-      <!-- Quick Add Test TODO Test Box -->
-      <div class="pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row items-center gap-3">
-        <div class="flex-1 w-full relative">
-          <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500 font-mono text-xs">
-            # TODO:
-          </span>
-          <input type="text" id="input-todo-text" placeholder="write unit tests for memory spine..." class="w-full pl-20 pr-4 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-mono">
-        </div>
-        <button onclick="triggerAddTodo()" class="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 transition flex items-center justify-center gap-2 whitespace-nowrap">
-          <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-          <span>Inject Test TODO into example.py</span>
+        <button onclick="confirmReset()" class="px-3 py-2 rounded-md bg-rose-950/20 hover:bg-rose-950/40 text-rose-400 hover:text-rose-300 font-mono text-xs border border-rose-900/30 transition">
+          PURGE_SPINE
         </button>
       </div>
-    </div>
 
-    <!-- Main Two Column Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-      <!-- Left Column: Current Repository TODOs (5 Cols) -->
-      <div class="lg:col-span-5 flex flex-col rounded-2xl bg-slate-900/70 border border-slate-800 overflow-hidden">
-        <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/40">
-          <div class="flex items-center gap-2">
-            <h3 class="font-semibold text-sm text-white">Repository TODOs</h3>
-            <span id="badge-todo-count" class="px-2 py-0.5 text-xs font-medium rounded-full bg-slate-800 text-slate-300 border border-slate-700">0</span>
-          </div>
-          <span class="text-xs text-slate-400">Scanned live</span>
+      <!-- Quick Inject Observation (Test Harness) -->
+      <div class="flex-1 max-w-md flex items-center gap-2">
+        <div class="relative flex-1">
+          <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-zinc-500 font-mono text-xs">
+            # TODO:
+          </span>
+          <input type="text" id="input-todo" placeholder="implement agent reflection loop..." class="w-full pl-18 pr-3 py-1.5 bg-[#0a0b0e] border border-[#1f2430] rounded-md text-xs font-mono text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-cyan-500">
         </div>
-
-        <div id="todos-list-container" class="p-4 space-y-3 overflow-y-auto max-h-[600px] custom-scrollbar flex-1">
-          <!-- Dynamically populated -->
-          <div class="py-12 text-center text-slate-500 text-sm">Scanning files...</div>
-        </div>
-      </div>
-
-      <!-- Right Column: Memory Spine (progress.md) Timeline (7 Cols) -->
-      <div class="lg:col-span-7 flex flex-col rounded-2xl bg-slate-900/70 border border-slate-800 overflow-hidden">
-        <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/40">
-          <div class="flex items-center gap-2">
-            <h3 class="font-semibold text-sm text-white">Memory Spine (<span class="font-mono text-indigo-400">progress.md</span>)</h3>
-            <span id="badge-history-count" class="px-2 py-0.5 text-xs font-medium rounded-full bg-slate-800 text-slate-300 border border-slate-700">0 runs</span>
-          </div>
-          <!-- View mode toggle -->
-          <div class="flex rounded-lg bg-slate-950 p-0.5 border border-slate-800 text-xs">
-            <button id="btn-view-visual" onclick="setViewMode('visual')" class="px-3 py-1 rounded-md font-medium text-slate-200 bg-slate-800 shadow-sm transition">Timeline</button>
-            <button id="btn-view-raw" onclick="setViewMode('raw')" class="px-3 py-1 rounded-md font-medium text-slate-400 hover:text-slate-200 transition">Raw Markdown</button>
-          </div>
-        </div>
-
-        <!-- Visual Timeline View -->
-        <div id="timeline-container" class="p-4 space-y-4 overflow-y-auto max-h-[600px] custom-scrollbar flex-1">
-          <!-- Dynamically populated -->
-          <div class="py-12 text-center text-slate-500 text-sm">Loading spine memory...</div>
-        </div>
-
-        <!-- Raw Markdown View (Hidden by default) -->
-        <div id="raw-markdown-container" class="p-4 overflow-y-auto max-h-[600px] custom-scrollbar flex-1 hidden">
-          <pre id="raw-markdown-content" class="text-xs text-slate-300 font-mono bg-slate-950 p-4 rounded-xl border border-slate-800 whitespace-pre-wrap leading-relaxed"></pre>
-        </div>
+        <button onclick="injectObservation()" class="px-3 py-1.5 rounded-md bg-[#161922] hover:bg-[#1f2430] border border-[#1f2430] text-xs font-mono text-cyan-400 whitespace-nowrap transition">
+          + INJECT
+        </button>
       </div>
 
     </div>
 
-    <!-- Explainer Callout Card -->
-    <div class="p-5 rounded-2xl bg-slate-900/40 border border-slate-800/80 text-xs text-slate-400 leading-relaxed flex items-start gap-4">
-      <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center shrink-0">
-        💡
+    <!-- Dual Workspace Split -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+      <!-- Left Column: Workspace Observation Stream (5 Cols) -->
+      <div class="lg:col-span-5 rounded-lg bg-[#101218] border border-[#1f2430] flex flex-col overflow-hidden">
+        <div class="px-4 py-3 border-b border-[#1f2430] flex items-center justify-between bg-[#0e1015]">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-mono text-zinc-400 uppercase tracking-wider">Perceived Observations</span>
+            <span id="badge-obs-count" class="px-1.5 py-0.2 text-[10px] font-mono rounded bg-[#1f2430] text-zinc-300">0</span>
+          </div>
+          <span class="text-[11px] font-mono text-zinc-500">grep::TODO</span>
+        </div>
+
+        <div id="observations-list" class="p-3 space-y-2 overflow-y-auto max-h-[560px] custom-scroll flex-1">
+          <div class="py-12 text-center text-xs font-mono text-zinc-600">Scanning repository tree...</div>
+        </div>
       </div>
-      <div class="space-y-1">
-        <h4 class="font-semibold text-slate-200 text-sm">How the Memory Spine Works</h4>
-        <p>Every time you click <strong class="text-slate-300">Run Digest Beat</strong> (or when the scheduled loop runs), the scanner finds all open TODOs and compares them against signatures saved in <span class="font-mono text-slate-300">progress.md</span>. Only <strong class="text-emerald-400">NEW TODOs</strong> are appended. If nothing changed, it records that no new TODOs exist. The memory survives across restarts solely through the spine file.</p>
+
+      <!-- Right Column: Episodic Memory Spine (7 Cols) -->
+      <div class="lg:col-span-7 rounded-lg bg-[#101218] border border-[#1f2430] flex flex-col overflow-hidden">
+        <div class="px-4 py-3 border-b border-[#1f2430] flex items-center justify-between bg-[#0e1015]">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-mono text-zinc-400 uppercase tracking-wider">Episodic Memory Spine</span>
+            <span class="font-mono text-[10px] text-cyan-400 bg-cyan-950/40 border border-cyan-800/40 px-1.5 py-0.5 rounded">progress.md</span>
+          </div>
+
+          <div class="flex rounded border border-[#1f2430] bg-[#0a0b0e] p-0.5 text-[11px] font-mono">
+            <button id="btn-tab-timeline" onclick="switchTab('timeline')" class="px-2.5 py-0.5 rounded bg-[#1f2430] text-zinc-200">EPISODES</button>
+            <button id="btn-tab-raw" onclick="switchTab('raw')" class="px-2.5 py-0.5 rounded text-zinc-400 hover:text-zinc-200">RAW_SPINE</button>
+          </div>
+        </div>
+
+        <!-- Episodes View -->
+        <div id="episodes-container" class="p-4 space-y-3 overflow-y-auto max-h-[560px] custom-scroll flex-1">
+          <div class="py-12 text-center text-xs font-mono text-zinc-600">Parsing episodic log...</div>
+        </div>
+
+        <!-- Raw Markdown Stream -->
+        <div id="raw-container" class="p-4 overflow-y-auto max-h-[560px] custom-scroll flex-1 hidden">
+          <pre id="raw-content" class="text-xs font-mono text-zinc-400 bg-[#0a0b0e] p-3 rounded border border-[#1f2430] whitespace-pre-wrap leading-relaxed"></pre>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Agent Architecture Footnote -->
+    <div class="p-3 rounded-lg bg-[#0c0e14] border border-[#1f2430]/60 flex items-center justify-between text-[11px] font-mono text-zinc-500">
+      <div class="flex items-center gap-2">
+        <span class="text-cyan-500">⌘</span>
+        <span>Loop Mechanism: Perceive State &rarr; Compute Set Difference &rarr; Persist New Signatures to Spine.</span>
+      </div>
+      <div class="hidden sm:block text-zinc-600">
+        Resilient across restarts &bull; Memory survives via progress.md
       </div>
     </div>
 
   </main>
 
-  <!-- Footer -->
-  <footer class="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500">
-    Scheduled Memory Loop Engine &bull; Built with Flask &amp; Tailwind CSS
-  </footer>
-
   <script>
-    let currentData = null;
-    let currentViewMode = 'visual';
+    let activeTab = 'timeline';
 
-    // Show toast alerts
-    function showToast(message, type = 'success') {
+    function showToast(msg, isError = false) {
       const container = document.getElementById('toast-container');
       const toast = document.createElement('div');
-      const colors = type === 'success' 
-        ? 'bg-emerald-950/90 border-emerald-500/50 text-emerald-200' 
-        : 'bg-red-950/90 border-red-500/50 text-red-200';
-      const icon = type === 'success' ? '✓' : '✕';
-
-      toast.className = `p-3.5 rounded-xl border shadow-xl flex items-center gap-3 text-xs font-medium pointer-events-auto transform transition-all duration-300 opacity-0 translate-y-2 ${colors}`;
-      toast.innerHTML = `<span class="w-5 h-5 rounded-full flex items-center justify-center bg-white/10 shrink-0 font-bold">${icon}</span><span>${message}</span>`;
+      toast.className = `p-2.5 rounded border text-xs font-mono pointer-events-auto transition-all duration-200 ${
+        isError ? 'bg-rose-950/90 border-rose-800 text-rose-300' : 'bg-cyan-950/90 border-cyan-800 text-cyan-300'
+      }`;
+      toast.innerHTML = `<span class="mr-1.5">${isError ? '!' : '✓'}</span> ${escapeHtml(msg)}`;
       container.appendChild(toast);
-
-      requestAnimationFrame(() => {
-        toast.classList.remove('opacity-0', 'translate-y-2');
-      });
-
       setTimeout(() => {
-        toast.classList.add('opacity-0', '-translate-y-2');
-        setTimeout(() => toast.remove(), 300);
-      }, 4000);
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 200);
+      }, 3500);
     }
 
-    // View mode toggle
-    function setViewMode(mode) {
-      currentViewMode = mode;
-      const visualContainer = document.getElementById('timeline-container');
-      const rawContainer = document.getElementById('raw-markdown-container');
-      const btnVisual = document.getElementById('btn-view-visual');
-      const btnRaw = document.getElementById('btn-view-raw');
+    function switchTab(tab) {
+      activeTab = tab;
+      const timeline = document.getElementById('episodes-container');
+      const raw = document.getElementById('raw-container');
+      const btnTimeline = document.getElementById('btn-tab-timeline');
+      const btnRaw = document.getElementById('btn-tab-raw');
 
-      if (mode === 'visual') {
-        visualContainer.classList.remove('hidden');
-        rawContainer.classList.add('hidden');
-        btnVisual.className = 'px-3 py-1 rounded-md font-medium text-slate-200 bg-slate-800 shadow-sm transition';
-        btnRaw.className = 'px-3 py-1 rounded-md font-medium text-slate-400 hover:text-slate-200 transition';
+      if (tab === 'timeline') {
+        timeline.classList.remove('hidden');
+        raw.classList.add('hidden');
+        btnTimeline.className = 'px-2.5 py-0.5 rounded bg-[#1f2430] text-zinc-200';
+        btnRaw.className = 'px-2.5 py-0.5 rounded text-zinc-400 hover:text-zinc-200';
       } else {
-        visualContainer.classList.add('hidden');
-        rawContainer.classList.remove('hidden');
-        btnRaw.className = 'px-3 py-1 rounded-md font-medium text-slate-200 bg-slate-800 shadow-sm transition';
-        btnVisual.className = 'px-3 py-1 rounded-md font-medium text-slate-400 hover:text-slate-200 transition';
+        timeline.classList.add('hidden');
+        raw.classList.remove('hidden');
+        btnRaw.className = 'px-2.5 py-0.5 rounded bg-[#1f2430] text-zinc-200';
+        btnTimeline.className = 'px-2.5 py-0.5 rounded text-zinc-400 hover:text-zinc-200';
       }
     }
 
-    // Fetch live status from /api/status
-    async function fetchStatus(showNotification = false) {
+    async function fetchStatus(notify = false) {
       try {
         const res = await fetch('/api/status');
         const json = await res.json();
         if (json.success) {
-          currentData = json.data;
-          renderUI(json.data);
-          if (showNotification) showToast('Live status updated.');
+          renderData(json.data);
+          if (notify) showToast('Agent re-perceived workspace.');
         } else {
-          showToast(json.error || 'Failed to fetch status', 'error');
+          showToast(json.error || 'Failed to perceive status', true);
         }
       } catch (err) {
-        showToast('Error connecting to backend API', 'error');
+        showToast('API connection error', true);
       }
     }
 
-    // Render the entire UI state
-    function renderUI(data) {
-      // Metrics
-      document.getElementById('stat-total-todos').innerText = data.total_todos;
-      document.getElementById('stat-known-todos').innerText = data.known_count;
-      document.getElementById('stat-new-todos').innerText = data.new_count;
-      document.getElementById('stat-history-count').innerText = data.history_count;
+    function renderData(data) {
+      // Telemetry
+      document.getElementById('metric-active').innerText = data.total_todos;
+      document.getElementById('metric-known').innerText = data.known_count;
+      document.getElementById('metric-new').innerText = data.new_count;
+      document.getElementById('metric-episodes').innerText = data.history_count;
+      document.getElementById('badge-obs-count').innerText = data.total_todos;
 
-      document.getElementById('badge-todo-count').innerText = data.total_todos;
-      document.getElementById('badge-history-count').innerText = `${data.history_count} runs`;
-
-      const newCard = document.getElementById('card-new-todos');
+      const statePill = document.getElementById('agent-state-pill');
+      const newCard = document.getElementById('card-new-kpi');
       if (data.new_count > 0) {
-        newCard.classList.add('border-amber-500/50', 'bg-amber-950/20');
-        document.getElementById('stat-new-label').innerText = 'ready to digest!';
+        statePill.innerText = `NEW_DELTA (${data.new_count})`;
+        statePill.className = 'text-amber-400 font-bold';
+        newCard.classList.add('border-amber-500/40');
       } else {
-        newCard.classList.remove('border-amber-500/50', 'bg-amber-950/20');
-        document.getElementById('stat-new-label').innerText = 'in sync with spine';
+        statePill.innerText = 'IN_SYNC';
+        statePill.className = 'text-emerald-400 font-medium';
+        newCard.classList.remove('border-amber-500/40');
       }
 
-      // Render Left Column: Active TODOs
-      const todosContainer = document.getElementById('todos-list-container');
-      if (data.todos.length === 0) {
-        todosContainer.innerHTML = `
-          <div class="py-12 text-center text-slate-500 text-xs">
-            No TODO comments found in the repository.
-          </div>
-        `;
-      } else {
-        todosContainer.innerHTML = data.todos.map(todo => {
-          const isNew = todo.is_new;
-          const badgeClass = isNew 
-            ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' 
-            : 'bg-slate-800 text-slate-400 border-slate-700';
-          const badgeText = isNew ? '★ NEW / UNRECORDED' : '✓ KNOWN';
+      if (data.storage_path) {
+        const isTmp = data.storage_path.includes('/tmp') || data.storage_path.includes('Temp');
+        document.getElementById('storage-pill').innerText = isTmp ? 'ephemeral (/tmp)' : 'persistent';
+      }
 
+      // Left Column: Observations
+      const obsContainer = document.getElementById('observations-list');
+      if (data.todos.length === 0) {
+        obsContainer.innerHTML = `<div class="py-12 text-center text-xs font-mono text-zinc-600">Zero TODO signatures detected in repo.</div>`;
+      } else {
+        obsContainer.innerHTML = data.todos.map(item => {
+          const isNew = item.is_new;
           return `
-            <div class="p-3 rounded-xl bg-slate-950/60 border ${isNew ? 'border-amber-500/40 shadow-sm shadow-amber-500/5' : 'border-slate-800/80'} hover:border-slate-700 transition">
-              <div class="flex items-center justify-between mb-1.5">
-                <span class="font-mono text-xs text-indigo-400 font-medium">${escapeHtml(todo.file)}:${todo.line}</span>
-                <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full border ${badgeClass}">
-                  ${badgeText}
+            <div class="p-2.5 rounded bg-[#0a0b0e] border ${isNew ? 'border-amber-500/50 bg-amber-950/10' : 'border-[#1f2430]'} font-mono text-xs">
+              <div class="flex items-center justify-between text-[11px] mb-1">
+                <span class="text-cyan-400 font-semibold">${escapeHtml(item.file)}:${item.line}</span>
+                <span class="px-1.5 py-0.2 rounded text-[10px] font-bold ${isNew ? 'bg-amber-400/10 text-amber-300 border border-amber-400/30' : 'bg-zinc-800 text-zinc-400'}">
+                  ${isNew ? '+ NEW_DELTA' : 'PERSISTED'}
                 </span>
               </div>
-              <div class="font-mono text-xs text-slate-200 bg-slate-900 px-2.5 py-1.5 rounded-lg border border-slate-800 break-all">
-                ${escapeHtml(todo.text)}
+              <div class="text-zinc-300 bg-[#12151d] px-2 py-1 rounded border border-[#1b202c] text-[11px] break-all">
+                ${escapeHtml(item.text)}
               </div>
             </div>
           `;
         }).join('');
       }
 
-      // Render Right Column: Timeline
-      const timelineContainer = document.getElementById('timeline-container');
+      // Right Column: Episodes
+      const epContainer = document.getElementById('episodes-container');
       if (data.history.length === 0) {
-        timelineContainer.innerHTML = `
-          <div class="py-12 text-center text-slate-500 text-xs">
-            No past runs recorded in progress.md yet. Click "Run Digest Beat Now" to create the first entry!
-          </div>
-        `;
+        epContainer.innerHTML = `<div class="py-12 text-center text-xs font-mono text-zinc-600">No episodic runs logged yet. Execute loop beat.</div>`;
       } else {
-        timelineContainer.innerHTML = data.history.map(item => {
-          const hasTodos = item.todos && item.todos.length > 0;
+        epContainer.innerHTML = data.history.map((ep, idx) => {
+          const hasDeltas = ep.todos && ep.todos.length > 0;
           return `
-            <div class="relative pl-6 pb-4 border-l-2 border-indigo-500/30 last:border-transparent last:pb-0">
-              <!-- Timeline Dot -->
-              <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-slate-900 border-2 border-indigo-500 flex items-center justify-center">
-                <div class="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>
-              </div>
-
-              <div class="p-4 rounded-xl bg-slate-950/60 border border-slate-800/90 shadow-sm space-y-2">
-                <div class="flex items-center justify-between">
-                  <span class="font-bold text-sm text-white">${escapeHtml(item.date)}</span>
-                  <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full ${hasTodos ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-400 border border-slate-700'}">
-                    ${hasTodos ? `${item.count} new TODO${item.count !== 1 ? 's' : ''}` : 'No new TODOs'}
-                  </span>
+            <div class="p-3 rounded bg-[#0a0b0e] border border-[#1f2430] font-mono text-xs space-y-2">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="text-zinc-500 text-[10px]">#${data.history.length - idx}</span>
+                  <span class="font-bold text-zinc-200">${escapeHtml(ep.date)}</span>
                 </div>
-
-                ${item.summary ? `<p class="text-xs text-slate-400 font-medium">${escapeHtml(item.summary)}</p>` : ''}
-
-                ${hasTodos ? `
-                  <div class="space-y-1.5 mt-2">
-                    ${item.todos.map(t => `
-                      <div class="text-xs font-mono bg-slate-900/90 p-2 rounded-lg border border-slate-800 text-slate-300 flex items-start gap-2">
-                        <span class="text-indigo-400 font-semibold shrink-0">${escapeHtml(t.loc)}</span>
-                        <span class="text-slate-500 shrink-0">|</span>
-                        <span class="text-slate-200 break-all">${escapeHtml(t.text)}</span>
-                      </div>
-                    `).join('')}
-                  </div>
-                ` : ''}
+                <span class="text-[10px] px-1.5 py-0.5 rounded font-semibold ${hasDeltas ? 'bg-cyan-950/60 text-cyan-300 border border-cyan-800/40' : 'bg-zinc-800/80 text-zinc-400'}">
+                  ${hasDeltas ? `+${ep.count} DELTA${ep.count !== 1 ? 'S' : ''}` : 'NO_NEW_DELTAS'}
+                </span>
               </div>
+
+              ${ep.summary ? `<div class="text-[11px] text-zinc-400 font-sans">${escapeHtml(ep.summary)}</div>` : ''}
+
+              ${hasDeltas ? `
+                <div class="space-y-1 pt-1">
+                  ${ep.todos.map(t => `
+                    <div class="p-1.5 rounded bg-[#12151d] border border-[#1b202c] text-[11px] text-zinc-300 flex items-start gap-1.5">
+                      <span class="text-cyan-400 shrink-0">${escapeHtml(t.loc)}</span>
+                      <span class="text-zinc-600">&rarr;</span>
+                      <span class="break-all">${escapeHtml(t.text)}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              ` : ''}
             </div>
           `;
         }).join('');
       }
 
-      // Raw Markdown
-      document.getElementById('raw-markdown-content').innerText = data.raw_progress || '# Progress Log\n';
+      document.getElementById('raw-content').innerText = data.raw_progress || '# Progress Log\n';
     }
 
-    // Trigger Run Digest Beat
-    async function triggerRunDigest() {
-      const btn = document.getElementById('btn-run-digest');
-      const originalText = btn.innerHTML;
+    async function runAgentBeat() {
+      const btn = document.getElementById('btn-trigger');
+      const original = btn.innerHTML;
       btn.disabled = true;
-      btn.innerHTML = `<span class="animate-spin">⏳</span> Scanning...`;
+      btn.innerHTML = `<span>⏳ COMPUTING_DIFF...</span>`;
 
       try {
         const res = await fetch('/api/run-digest', { method: 'POST' });
         const json = await res.json();
         if (json.success) {
-          currentData = json.data;
-          renderUI(json.data);
-          showToast(`Digest beat finished! Appended ${json.new_count} new TODO(s) to progress.md.`);
+          renderData(json.data);
+          showToast(`Beat committed: ${json.new_count} delta(s) added to spine.`);
         } else {
-          showToast(json.error || 'Failed to run digest', 'error');
+          showToast(json.error || 'Loop execution failed', true);
         }
       } catch (err) {
-        showToast('Error executing digest', 'error');
+        showToast('Execution error', true);
       } finally {
         btn.disabled = false;
-        btn.innerHTML = originalText;
+        btn.innerHTML = original;
       }
     }
 
-    // Inject Test TODO
-    async function triggerAddTodo() {
-      const input = document.getElementById('input-todo-text');
+    async function injectObservation() {
+      const input = document.getElementById('input-todo');
       const text = input.value.trim();
       if (!text) {
-        showToast('Please type a task description first', 'error');
         input.focus();
         return;
       }
@@ -444,60 +385,44 @@
         const res = await fetch('/api/add-todo', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ todo: text, file: 'example.py' })
+          body: JSON.stringify({ todo: text })
         });
         const json = await res.json();
         if (json.success) {
           input.value = '';
-          currentData = json.data;
-          renderUI(json.data);
-          showToast('Injected new TODO into example.py! Now run the digest beat to record it.');
+          renderData(json.data);
+          showToast('Injected into workspace. Now trigger beat to persist.');
         } else {
-          showToast(json.error || 'Failed to add TODO', 'error');
+          showToast(json.error || 'Failed to inject observation', true);
         }
       } catch (err) {
-        showToast('Error adding TODO', 'error');
+        showToast('Injection error', true);
       }
     }
 
-    // Reset Memory Confirmation
-    async function confirmResetMemory() {
-      if (!confirm('Are you sure you want to reset the memory spine (progress.md)? This will clear recorded history.')) {
-        return;
-      }
-
+    async function confirmReset() {
+      if (!confirm('Purge episodic memory spine (progress.md)?')) return;
       try {
         const res = await fetch('/api/reset-memory', { method: 'POST' });
         const json = await res.json();
         if (json.success) {
-          currentData = json.data;
-          renderUI(json.data);
-          showToast('Memory spine reset to empty log.');
-        } else {
-          showToast(json.error || 'Failed to reset memory', 'error');
+          renderData(json.data);
+          showToast('Spine memory purged.');
         }
       } catch (err) {
-        showToast('Error resetting memory', 'error');
+        showToast('Reset failed', true);
       }
     }
 
-    // Utility: HTML escape
-    function escapeHtml(string) {
-      if (!string) return '';
-      return String(string)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+    function escapeHtml(s) {
+      if (!s) return '';
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    // Handle Enter key on input
-    document.getElementById('input-todo-text').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') triggerAddTodo();
+    document.getElementById('input-todo').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') injectObservation();
     });
 
-    // Initial load
     fetchStatus();
   </script>
 </body>
