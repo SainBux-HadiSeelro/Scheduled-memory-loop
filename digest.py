@@ -1,10 +1,11 @@
 import os
 import re
+import tempfile
+import shutil
 from datetime import date
 from typing import Dict, List, Any
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROGRESS_FILE = os.path.join(PROJECT_DIR, "progress.md")
 
 DEFAULT_EXCLUDES = {
     "progress.md",
@@ -25,35 +26,128 @@ DEFAULT_EXCLUDES = {
 }
 
 
-def ensure_progress_file() -> None:
-    """Ensure progress.md exists."""
-    if not os.path.exists(PROGRESS_FILE):
-        with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
-            f.write("# Progress Log\n")
+def get_writable_dir() -> str:
+    """Determine a safe, writable directory.
+    In serverless platforms (e.g. Vercel, AWS Lambda where root is /var/task),
+    the file system is read-only. In that case, fallback to /tmp or system temp dir.
+    """
+    if "DATA_DIR" in os.environ:
+        os.makedirs(os.environ["DATA_DIR"], exist_ok=True)
+        return os.environ["DATA_DIR"]
+
+    # Test if PROJECT_DIR is writable
+    test_path = os.path.join(PROJECT_DIR, f".write_test_{os.getpid()}")
+    try:
+        with open(test_path, "w", encoding="utf-8") as f:
+            f.write("ok")
+        os.remove(test_path)
+        return PROJECT_DIR
+    except (OSError, IOError, PermissionError):
+        pass
+
+    # Serverless fallback: /tmp on Unix/Lambda/Vercel or system tempdir on Windows
+    tmp_candidate = "/tmp" if os.path.exists("/tmp") and os.access("/tmp", os.W_OK) else tempfile.gettempdir()
+    os.makedirs(tmp_candidate, exist_ok=True)
+    return tmp_candidate
+
+
+def get_progress_file_path() -> str:
+    """Get the active progress.md path.
+    If the project root is read-only (such as /var/task),
+    seeds and returns a writable copy in the temporary directory.
+    """
+    if "PROGRESS_FILE" in os.environ:
+        return os.environ["PROGRESS_FILE"]
+
+    writable_dir = get_writable_dir()
+    bundled_file = os.path.join(PROJECT_DIR, "progress.md")
+
+    if os.path.abspath(writable_dir) == os.path.abspath(PROJECT_DIR):
+        return bundled_file
+
+    target_file = os.path.join(writable_dir, "progress.md")
+    if not os.path.exists(target_file):
+        if os.path.exists(bundled_file):
+            try:
+                shutil.copy2(bundled_file, target_file)
+            except Exception:
+                pass
+        else:
+            try:
+                with open(target_file, "w", encoding="utf-8") as f:
+                    f.write("# Progress Log\n")
+            except Exception:
+                pass
+
+    return target_file
+
+
+def ensure_progress_file() -> str:
+    """Ensure the spine progress.md exists and return its path."""
+    target = get_progress_file_path()
+    if not os.path.exists(target):
+        try:
+            with open(target, "w", encoding="utf-8") as f:
+                f.write("# Progress Log\n")
+        except Exception:
+            # Fallback to absolute temp directory
+            fallback = os.path.join(tempfile.gettempdir(), "progress.md")
+            with open(fallback, "w", encoding="utf-8") as f:
+                f.write("# Progress Log\n")
+            return fallback
+    return target
 
 
 def get_known_signatures() -> set[str]:
     """Parse all known TODO signatures already recorded in progress.md.
     Matches lines formatted as: '- path:line | text'
     """
-    ensure_progress_file()
+    progress_file = ensure_progress_file()
     known = set()
     pattern = re.compile(r"^\s*-\s+([^|]+?)\s*\|\s*(.*)$")
-    with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
-        for line in f:
-            match = pattern.match(line)
-            if match:
-                path_line = match.group(1).strip()
-                content = match.group(2).strip()
-                known.add(f"{path_line}|{content}")
+    if os.path.exists(progress_file):
+        with open(progress_file, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                match = pattern.match(line)
+                if match:
+                    path_line = match.group(1).strip()
+                    content = match.group(2).strip()
+                    known.add(f"{path_line}|{content}")
     return known
+
+
+def get_writable_file_path(filename: str = "example.py") -> str:
+    """Get writable path for a project file (copies to tmp in read-only environments)."""
+    writable_dir = get_writable_dir()
+    bundled_path = os.path.join(PROJECT_DIR, filename)
+
+    if os.path.abspath(writable_dir) == os.path.abspath(PROJECT_DIR):
+        return bundled_path
+
+    target_path = os.path.join(writable_dir, filename)
+    if not os.path.exists(target_path) and os.path.exists(bundled_path):
+        try:
+            shutil.copy2(bundled_path, target_path)
+        except Exception:
+            pass
+    return target_path
 
 
 def scan_repo_todos() -> List[Dict[str, Any]]:
     """Scan the repository for open TODO comments."""
     todos = []
+    writable_dir = get_writable_dir()
+    overridden_files = {}
+
+    # In serverless environments, check if writable overrides exist
+    if os.path.abspath(writable_dir) != os.path.abspath(PROJECT_DIR):
+        for root, dirs, files in os.walk(writable_dir):
+            for file in files:
+                if file.endswith(".py"):
+                    rel = os.path.relpath(os.path.join(root, file), writable_dir).replace("\\", "/")
+                    overridden_files[rel] = os.path.join(root, file)
+
     for root, dirs, files in os.walk(PROJECT_DIR):
-        # Exclude directories
         dirs[:] = [
             d for d in dirs
             if d not in DEFAULT_EXCLUDES and not d.startswith(".")
@@ -63,11 +157,9 @@ def scan_repo_todos() -> List[Dict[str, Any]]:
             if file in DEFAULT_EXCLUDES or file.startswith("."):
                 continue
 
-            rel_path = os.path.relpath(os.path.join(root, file), PROJECT_DIR)
-            # Normalize path separators to forward slash for cross-platform consistency
-            rel_path = rel_path.replace("\\", "/")
+            rel_path = os.path.relpath(os.path.join(root, file), PROJECT_DIR).replace("\\", "/")
+            file_path = overridden_files.get(rel_path, os.path.join(root, file))
 
-            file_path = os.path.join(root, file)
             try:
                 with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                     for line_num, line in enumerate(f, start=1):
@@ -88,11 +180,12 @@ def scan_repo_todos() -> List[Dict[str, Any]]:
 
 def parse_history() -> List[Dict[str, Any]]:
     """Parse past run entries from progress.md into structured data."""
-    ensure_progress_file()
-    with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
-        content = f.read()
+    progress_file = ensure_progress_file()
+    content = ""
+    if os.path.exists(progress_file):
+        with open(progress_file, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
 
-    # Split by level 2 headings '## YYYY-MM-DD'
     sections = re.split(r"\n(?=##\s+)", content)
     history = []
 
@@ -126,7 +219,6 @@ def parse_history() -> List[Dict[str, Any]]:
             "raw": sec
         })
 
-    # Return in reverse chronological order (newest first)
     return list(reversed(history))
 
 
@@ -148,9 +240,12 @@ def get_status() -> Dict[str, Any]:
             new_todos.append(todo_data)
 
     history = parse_history()
+    progress_file = ensure_progress_file()
 
-    with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
-        raw_progress = f.read()
+    raw_progress = ""
+    if os.path.exists(progress_file):
+        with open(progress_file, "r", encoding="utf-8", errors="ignore") as f:
+            raw_progress = f.read()
 
     return {
         "todos": enriched_todos,
@@ -160,7 +255,8 @@ def get_status() -> Dict[str, Any]:
         "known_count": len(known),
         "history": history,
         "raw_progress": raw_progress,
-        "history_count": len(history)
+        "history_count": len(history),
+        "storage_path": progress_file
     }
 
 
@@ -184,8 +280,8 @@ def run_digest() -> Dict[str, Any]:
             loc = f"{t['file']}:{t['line']}"
             entry += f"- {loc} | {t['text']}\n"
 
-    # Append to progress.md
-    with open(PROGRESS_FILE, "a", encoding="utf-8") as f:
+    progress_file = ensure_progress_file()
+    with open(progress_file, "a", encoding="utf-8") as f:
         f.write(f"\n{entry}")
 
     updated_status = get_status()
@@ -198,7 +294,7 @@ def run_digest() -> Dict[str, Any]:
 
 def add_test_todo(text: str, filename: str = "example.py") -> str:
     """Helper to append a new TODO to a file to test the memory loop."""
-    target_path = os.path.join(PROJECT_DIR, filename)
+    target_path = get_writable_file_path(filename)
     clean_text = text.strip()
     if not clean_text.upper().startswith("TODO") and not clean_text.startswith("#"):
         clean_text = f"# TODO: {clean_text}"
@@ -213,7 +309,8 @@ def add_test_todo(text: str, filename: str = "example.py") -> str:
 
 def reset_memory() -> None:
     """Reset the spine memory (progress.md) to initial state."""
-    with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
+    progress_file = ensure_progress_file()
+    with open(progress_file, "w", encoding="utf-8") as f:
         f.write("# Progress Log\n")
 
 
